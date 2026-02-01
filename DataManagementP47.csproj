@@ -12,6 +12,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Update="sql\InsertData.sql">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
     <None Update="sql\Tables.sql">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
