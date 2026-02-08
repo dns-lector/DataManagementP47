@@ -31,7 +31,7 @@ namespace DataManagementP47.Ado
                     case '1': OpenConnection(); break;
                     case '2': CreateTables(); break;
                     case '3': InsertData(); break;
-
+                    case '4': GenerateSales(); break;
                     case '5': ShowFirms(); break;
                     case '0': break;
                     default: Console.WriteLine("Неправильний вибір"); break;
@@ -39,6 +39,65 @@ namespace DataManagementP47.Ado
             } while (keyInfo.KeyChar != '0');
         }
 
+        // 4 
+        private void GenerateSales()
+        {
+            /* Параметризовані запити
+            Передісторія: 
+            1) SQL-ін'єкції - спосіб включити до даних коди так, щоб вони виконались у запиті
+                SELECT * FROM Users WHERE login='{str}'
+                login> user
+                SELECT * FROM Users WHERE login='user' 
+                login> user' OR '1'='1
+                SELECT * FROM Users WHERE login='user' OR '1'='1' 
+                login> user' OR (DROP TABLE Users)='1
+                SELECT * FROM Users WHERE login='user' OR (DROP TABLE Users)='1' 
+
+            2) Локалізація та національні формати
+                UPDATE Products SET Price={x} WHERE Id='1234124'
+                x = 99.50
+                з урахуванням української локалізації число формується через кому 99.50 -> 99,50
+                UPDATE Products SET Price=99,50 WHERE Id='1234124'  -- помилка синтаксису
+             
+            - Неможна "змішувати" код та дані, особливо якщо походження даних не є надійним (введеня
+               користувача, прийом з мережі, витяг з файлу тощо)
+            - Слід вживати заходи з відокремлення кодів та даних
+               SELECT * FROM Users WHERE login='UTF_DECODE({str})'
+
+            !! Параметризовані запити - інструмент такого відокремлення: у запит включаються
+                плейсхолдери - іменовані параметри, а окремо подаються їх значення, зазвичай,
+                із зазначенням типу даних. Синтаксис плейсхолдерів сильно залежить від технологій
+                (мови програмування, СУБД, драйверів тощо)
+             */
+            if (connection is null)
+            {
+                Console.WriteLine("Підключення не встановлене, оберіть спочатку п.1");
+                return;
+            }
+            String sql = "SELECT * FROM Firms WHERE Name = @name";   // @name - параметр або іменований плейсхолдер
+                                                                     // !! лапки не додаємо (Name = '@name' - неправильно)
+            using SqlCommand cmd = new(sql, connection);
+            SqlParameter nameParameter = new()
+            {
+                ParameterName = "@name",                             // як у плейсхолдера
+                SqlDbType = SqlDbType.NVarChar,                      // із зазначенням типу даних
+                Value = "EcoResale JSC"                              // сюди безпечно підставляти введені дані
+            };                                                      
+            cmd.Parameters.Add(nameParameter);                       // Всі параметри додаються до колекції команди: cmd.Parameters
+            using SqlDataReader reader = cmd.ExecuteReader();        // Після додавання усіх параметрів
+            if (reader.Read())                                       // запити виконуються і обробляються
+            {                                                        // таким же чином, як і без параметрів 
+                Console.WriteLine("{0}  {1}",
+                    reader.GetGuid("Id"),
+                    reader.GetString("Name"));
+            }
+            else
+            {
+                Console.WriteLine("Не знайдено");
+            }
+        }
+
+        // 5
         private void ShowFirms()
         {
             if (connection is null)
@@ -80,6 +139,7 @@ namespace DataManagementP47.Ado
             }
         }
 
+        // 3
         private void InsertData()
         {
             /* Сідування (від англ. seed - зерно) - внесення початкових
@@ -109,6 +169,7 @@ namespace DataManagementP47.Ado
             }
         }
 
+        // 2
         private void CreateTables()
         {
             if(connection is null)
@@ -146,6 +207,7 @@ namespace DataManagementP47.Ado
             }
         }
     
+        // 1
         private void OpenConnection()
         {
             // початок роботи з БД - підключення
