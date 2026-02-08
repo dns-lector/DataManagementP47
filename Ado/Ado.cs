@@ -1,6 +1,7 @@
 ﻿using DataManagementP47.Ado.Orm;
 using Microsoft.Data.SqlClient;
 using System.Data;
+using System.Reflection.PortableExecutable;
 
 namespace DataManagementP47.Ado
 {
@@ -41,6 +42,84 @@ namespace DataManagementP47.Ado
 
         // 4 
         private void GenerateSales()
+        {
+            if (connection is null)
+            {
+                Console.WriteLine("Підключення не встановлене, оберіть спочатку п.1");
+                return;
+            }
+            List<Product> products = [];
+            {
+                using SqlCommand cmd1 = new("SELECT * FROM Products", connection);
+                using SqlDataReader reader1 = cmd1.ExecuteReader();
+                while (reader1.Read())
+                {
+                    products.Add(Product.FromReader(reader1));
+                }
+            }
+
+            List<Employee> employees = [];
+            {
+                using SqlCommand cmd2 = new("SELECT * FROM Employees", connection);
+                using SqlDataReader reader2 = cmd2.ExecuteReader();
+                while (reader2.Read())
+                {
+                    employees.Add(Employee.FromReader(reader2));
+                }
+            }
+
+            Random random = new();
+
+            String sql = "INSERT INTO Sales(Id, EmployeeId, ProductId, Quantity, Moment) " +
+                             "VALUES( NEWID(), @EmployeeId, @ProductId, @Quantity, @Moment )";
+            using SqlCommand cmd = new(sql, connection);
+            SqlParameter employeeParam = new() { ParameterName = "@EmployeeId", DbType = DbType.Guid };
+            cmd.Parameters.Add(employeeParam);
+
+            SqlParameter productParam = new() { ParameterName = "@ProductId", DbType = DbType.Guid };
+            cmd.Parameters.Add(productParam);
+
+            SqlParameter quantityParam = new() { ParameterName = "@Quantity", DbType = DbType.Int32 };
+            cmd.Parameters.Add(quantityParam);
+
+            // якщо тип даних дозволяє різні розміри, то необхідно зазначити Size
+            // (для DateTime2 це може бути 6, 7 або 8 байт в залежності від точності) - деталі у конструкторі БД
+            SqlParameter momentParam = new() { ParameterName = "@Moment", DbType = DbType.DateTime2, Size = 7 };
+            cmd.Parameters.Add(momentParam);
+
+            cmd.Prepare();  // Підготовлений запит - який можна виконувати декілька разів з різними параметрами
+
+            for (int i = 0; i < 1000; i++)
+            {
+                Employee employee = employees[random.Next(employees.Count)];
+                Product product = products[random.Next(products.Count)];
+                // випадкова кількість з урахуванням, що чим дешевший товар, тим більша кількість може бути
+                int quantity = 1 + random.Next((int) (1000 / product.Price / 3));
+                // випадковий момент часу - у діапазоні останніх 10 років (315360000 секунд)
+                DateTime moment = DateTime.Now.AddSeconds(-random.Next(315360000));
+
+                cmd.Parameters[0].Value = employee.Id;
+                cmd.Parameters[1].Value = product.Id;
+                cmd.Parameters[2].Value = quantity;
+                cmd.Parameters[3].Value = moment;
+                try
+                {
+                    cmd.ExecuteNonQuery();
+                }
+                catch(Exception ex)
+                {
+                    Console.WriteLine("Помилка: " + ex.Message);
+                    return;
+                }
+            }
+            Console.WriteLine("Команди виконано успішно");
+            /* Д.З. Доповнити метод додавання (генерування) продажів:
+             * наприкінці його роботи додати відомості про поточну кількість продажів:
+             * - Команди виконано успішно, загальна кількість продажів: 3000
+             */
+        }
+
+        private void ParametersInQueries()
         {
             /* Параметризовані запити
             Передісторія: 
