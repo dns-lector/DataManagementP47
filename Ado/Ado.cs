@@ -1,43 +1,126 @@
-﻿using DataManagementP47.Ado.Orm;
+﻿using DataManagementP47.Ado.Dal;
+using DataManagementP47.Ado.Orm;
 using Microsoft.Data.SqlClient;
 using System.Data;
 using System.Reflection.PortableExecutable;
+using System.Text.Json;
 
 namespace DataManagementP47.Ado
 {
     public class Ado
     {
-        String connectionString = @"Data Source=(LocalDB)\MSSQLLocalDB;AttachDbFilename=C:\Users\samoylenko_d\source\repos\DataManagementP47\Database1.mdf;Integrated Security=True";
-        // String connectionString = @"Data Source=(LocalDB)\MSSQLLocalDB;AttachDbFilename=C:\Users\Lector\source\repos\DataManagementP47\Database1.mdf;Integrated Security=True";
+        // Перенесено до файлу конфігурації
+        // String connectionString = @"...";
+        
         private SqlConnection? connection;
+
+        private record MenuData(char MenuChar, String MenuName, Action MenuAction);        
 
         public void Run()
         {
+            MenuData[] MenuItems = [
+                new('1', "Перевірити підключення", OpenConnection),
+                new('2', "Створити таблиці БД", CreateTables),
+                new('3', "Заповнити початкові дані", InsertData),
+                new('4', "Створити дані 1000 продажів", GenerateSales),
+                new('5', "Вивести дані про фірми", ShowFirms),
+                new('6', "Статистика бази даних", Statistics),
+                new('0', "Вихід", () => { }),
+            ];
+
             Console.OutputEncoding = System.Text.Encoding.Unicode;
             Console.WriteLine("ADO.NET");
             ConsoleKeyInfo keyInfo;
             do
             {
-                Console.WriteLine("1 - Перевірити підключення");
-                Console.WriteLine("2 - Створити таблиці БД");
-                Console.WriteLine("3 - Заповнити початкові дані");
-                Console.WriteLine("4 - Створити дані 1000 продажів");
-                Console.WriteLine("5 - Вивести дані про фірми");
-                Console.WriteLine("0 - Вихід");
+                foreach(var item in MenuItems)
+                {
+                    Console.WriteLine($"{item.MenuChar} - {item.MenuName}");
+                }
                 keyInfo = Console.ReadKey();
                 Console.WriteLine();
-
-                switch (keyInfo.KeyChar)
+                var selectedItem = MenuItems.FirstOrDefault(item => item.MenuChar == keyInfo.KeyChar);
+                if(selectedItem != null)
                 {
-                    case '1': OpenConnection(); break;
-                    case '2': CreateTables(); break;
-                    case '3': InsertData(); break;
-                    case '4': GenerateSales(); break;
-                    case '5': ShowFirms(); break;
-                    case '0': break;
-                    default: Console.WriteLine("Неправильний вибір"); break;
+                    selectedItem.MenuAction();
+                }
+                else
+                {
+                    Console.WriteLine("Неправильний вибір");
                 }
             } while (keyInfo.KeyChar != '0');
+        }
+
+        // 6
+        private void Statistics()
+        {
+            // Д.З. Вивести статистичні дані (п. 6 меню):
+            // - кількість записів по всіх таблицях (у т.ч. фірми та продажі)
+            // - детальніше про продажі: дата першого та останнього продажу,
+            //    мінімальну, максимальну, середню суму чека (продажу)
+            //    максимальну кількість товарів в одному чеку
+            // - детальніше про фірми: мінімальна та максимальна кількість співробітників
+
+            if (connection is null)
+            {
+                Console.WriteLine("Підключення не встановлене, оберіть спочатку п.1");
+                return;
+            }
+            DataAccessor dataAccessor = new(connection);
+            try
+            {
+                Console.WriteLine($"Загальна кількість співробітників: {dataAccessor.GetEmployeeCount()}");
+                Console.WriteLine($"Загальна кількість товарів: {dataAccessor.GetProductCount()}");
+                Console.WriteLine($"Момент початку продажів: {dataAccessor.GetFirstSaleMoment()}");
+                Console.WriteLine($"Середня сума чеку (продажу): {dataAccessor.GetAvgSale()}");
+                Console.WriteLine();
+            }
+            catch
+            { 
+                Console.WriteLine("Помилка при виконанні операцій"); 
+            }
+        }
+
+        // 5
+        private void ShowFirms()
+        {
+            if (connection is null)
+            {
+                Console.WriteLine("Підключення не встановлене, оберіть спочатку п.1");
+                return;
+            }
+            // Команди, що повертають результат. Вибірки
+            String sql = "SELECT * FROM Firms";
+            using SqlCommand cmd = new(sql, connection);
+            // Передачу резульатів забезпечує SqlDataReader
+            using SqlDataReader reader = cmd.ExecuteReader();
+            // "Гнучкість" до різної кількості колонок забезпечує індексація
+            // reader["Id"], reader["Name"]
+            // або спеціальні геттери
+            // reader.GetGuid("Id"), reader.GetString("Name")
+            // Геттери більш рекомендовані через типізацію
+            //    while (reader.Read())   // ітерація генератора - одержання одного рядка таблиці
+            //    {
+            //        Console.WriteLine("{0}  {1}", 
+            //            reader.GetGuid("Id"), 
+            //            reader.GetString("Name"));
+            //    }
+            // ORM - Object Relation Mapping - Відображення даних та їх зв'язків
+            //  на об'єкти та їх зв'язки. Використовується коли формат даних не
+            //  є сумісним з мовою програмування (БД, JSON, XML, Excel ...)
+            // У найпростішому випадку - це оголошення класів та утворення колекції
+            //  їх об'єктів
+            List<Firm> firms = [];
+            while (reader.Read())
+            {
+                firms.Add(Firm.FromReader(reader));   // Add(new Firm(reader))
+            }
+
+            // Від'єднаний режим -- працюємо з колекціями, попередньо завантаженими з БД
+            foreach (Firm firm in firms)
+            {
+                Console.WriteLine(firm);
+            }
         }
 
         // 4 
@@ -176,48 +259,6 @@ namespace DataManagementP47.Ado
             }
         }
 
-        // 5
-        private void ShowFirms()
-        {
-            if (connection is null)
-            {
-                Console.WriteLine("Підключення не встановлене, оберіть спочатку п.1");
-                return;
-            }
-            // Команди, що повертають результат. Вибірки
-            String sql = "SELECT * FROM Firms";
-            using SqlCommand cmd = new(sql, connection);
-            // Передачу резульатів забезпечує SqlDataReader
-            using SqlDataReader reader = cmd.ExecuteReader();
-            // "Гнучкість" до різної кількості колонок забезпечує індексація
-            // reader["Id"], reader["Name"]
-            // або спеціальні геттери
-            // reader.GetGuid("Id"), reader.GetString("Name")
-            // Геттери більш рекомендовані через типізацію
-            //    while (reader.Read())   // ітерація генератора - одержання одного рядка таблиці
-            //    {
-            //        Console.WriteLine("{0}  {1}", 
-            //            reader.GetGuid("Id"), 
-            //            reader.GetString("Name"));
-            //    }
-            // ORM - Object Relation Mapping - Відображення даних та їх зв'язків
-            //  на об'єкти та їх зв'язки. Використовується коли формат даних не
-            //  є сумісним з мовою програмування (БД, JSON, XML, Excel ...)
-            // У найпростішому випадку - це оголошення класів та утворення колекції
-            //  їх об'єктів
-            List<Firm> firms = [];
-            while (reader.Read())
-            {
-                firms.Add(Firm.FromReader(reader));   // Add(new Firm(reader))
-            }
-
-            // Від'єднаний режим -- працюємо з колекціями, попередньо завантаженими з БД
-            foreach (Firm firm in firms)
-            {
-                Console.WriteLine(firm);
-            }
-        }
-
         // 3
         private void InsertData()
         {
@@ -292,6 +333,30 @@ namespace DataManagementP47.Ado
             // початок роботи з БД - підключення
             // традиція - рядок підключення - всі дані зібрані
             // до одного виразу
+            // Відповідно, цей вираз є таємним і не повинен публікуватись на репозиторії
+            // На практиці створюють два файли
+            // - один справжній appsettings.json, але вилучений з репозиторію (.gitignore)
+            // - інший відкритий appsettings_sample.json, але зі спотвореними даними (заміненими на ***)
+            // При цьому традиційно додають опис з клонування проєкту.
+            String connectionString;
+            try
+            {
+                var config = JsonSerializer.Deserialize<JsonElement>(
+                    File.ReadAllText(
+                        Path.Combine(
+                            Directory.GetCurrentDirectory(),
+                            "appsettings.json"
+                        )
+                    )
+                );
+                connectionString = config.GetProperty("ConnectionStrings").GetProperty("AdoDB").GetString()!;
+            }
+            catch(Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+                Console.WriteLine("Do you check appsettings.json?\n");
+                return;
+            }
 
             // управління підключенням забезпечує SqlConnection (Microsoft.Data.SqlClient)
             connection = new(connectionString);

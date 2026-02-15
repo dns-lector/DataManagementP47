@@ -6,7 +6,10 @@
 ПКМ - Add - New item - [Show all templates]
 [Data] - Service-based Database
 
-Оновити рядок підключення у файлах, де він згадується (Ado.cs)
+Переіменувати файл appsettings_sample.json до appsettings.json.
+Переконатись у властивостях файлу, що він копіюється до вихідної директорії.
+
+Оновити рядок підключення у файлі конфігурації (appsettings.json)
 [Рядок підключення є у властивостях БД, 
   відкритих через Server Explorer DblClk по файлу
   (не плутати з Solution Explorer)]
