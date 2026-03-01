@@ -16,6 +16,14 @@ namespace DataManagementP47.Dapper
             _connection.Query<Product>("SELECT * FROM Products")
         ];
 
+        public List<Firm> GetFirms() => [..
+            _connection.Query<Firm>("SELECT * FROM Firms")
+        ];
+
+        public List<Employee> GetEmployees() => [..
+            _connection.Query<Employee>("SELECT * FROM Employees")
+        ];
+
         public Product RandomProduct() =>
             // QueryFirst - формує один об'єкт (не колекцію) за результатом запиту
             _connection.QueryFirst<Product>("SELECT TOP 1 * FROM Products ORDER BY NEWID()");

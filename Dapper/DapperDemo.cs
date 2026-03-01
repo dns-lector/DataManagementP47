@@ -18,6 +18,24 @@ namespace DataManagementP47.Dapper
             OpenConnection();
             DapperAccessor accessor = new(connection!);
 
+            // accessor.GetFirms().ForEach(firm => Console.WriteLine(
+            //     $"new Entities.Firm\r\n{{\r\nId = Guid.Parse(\"{firm.Id}\"),\r\nName = \"{firm.Name}\"\r\n}}"));
+            // 
+            // Console.WriteLine(String.Join(',', accessor.GetProducts().Select(product => $@"new Entities.Product
+            //     {{
+            //         Id = Guid.Parse(""{product.Id}""),
+            //         Name = ""{product.Name}"",
+            //         Price = {product.Price}m
+            //     }}")));
+
+            Console.WriteLine(String.Join(',', accessor.GetEmployees().Select(emp => $@"new Entities.Employee
+                {{
+                    Id = Guid.Parse(""{emp.Id}""),
+                    FirmId = Guid.Parse(""{emp.FirmId}""),
+                    Name = ""{emp.Name}"",
+                    Birthdate = DateTime.Parse(""{emp.Birthdate:yyyy-MM-dd}"")
+                }}")));
+
             // best practice - формувати один блок для виведення замість багаторазового виведення малих блоків
             Console.WriteLine(String.Join('\n', accessor.SearchProducts("USB")));
 
