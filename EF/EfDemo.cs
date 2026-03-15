@@ -2,15 +2,135 @@
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 
 namespace DataManagementP47.EF
 {
     internal class EfDemo
     {
+        private EfContext context = new();
+        private Random random = new();
+
         public void Run()
         {
-            EfContext context = new();
+            Console.WriteLine($"Статистика БД: Товарів-{context.Products.Count()}, Співробітників-{context.Employees.Count()}, Фірм-{context.Firms.Count()}, Продажів-{context.Sales.Count()}");
+            // Практика
+            // GenerateSales();
+            // SalesStat();
+            ShowRandomSale();
+            Console.WriteLine("Done");
+            // Console.ReadKey();
+        }
+        private void SalesStat()
+        {
+            // Задача: детальна загальна статистика продажів:
+            // перший, останній, найдешевший, найдорожчій, середній
+            DateTime firstSateDt = context.Sales.Min(s => s.Moment);
+            Console.WriteLine($"Статистика продажів:");
+            Console.WriteLine($"Найперший: {firstSateDt}");
+            Console.WriteLine($"Oстанній: {context.Sales.Max(s => s.Moment)}");
+            Console.WriteLine($"Hайдешевший: {context.Sales.Min(s => s.Quantity * context.Products.First(p => p.Id == s.ProductId)!.Price):F2} грн");
+            Console.WriteLine($"Hайдорожчій: {context.Sales.Max(s => s.Quantity * context.Products.First(p => p.Id == s.ProductId)!.Price):F2} грн");
+            Console.WriteLine($"Cередній: {context.Sales.Average(s => s.Quantity * context.Products.First(p => p.Id == s.ProductId)!.Price):F2} грн");
+            Console.WriteLine("--------------");
+            var query = context.Sales.Join(                   // Поєднання - еквівалент JOIN в SQL
+                context.Products,                             // до вибірки, з якої починається інструкція, додається інша вибірка, що іде першим аргументом
+                s => s.ProductId,                             // умова поєднання поділяється на два аргументи - один з них - зовнішній ключ
+                p => p.Id,                                    // інший - первинний ключ
+                (Sale, Product) => new { Sale, Product }      // Селектор - що саме буде вибиратись з поєднаних пар
+            );                                                // 
+            Console.WriteLine($"Hайдешевший: {query.Min(pair => pair.Sale.Quantity * pair.Product.Price):F2}");
+
+            var query2 = context.Sales.Join(                  // Якщо від поєднання потрібна лише одна величина,
+                context.Products,                             // то можна її прямо зазначити
+                s => s.ProductId,                             // в останньому аргументі - селекторі
+                p => p.Id,                                    // 
+                (Sale, Product) => Sale.Quantity * Product.Price   
+            );
+            Console.WriteLine($"Hайдорожчій: {query2.Max():F2}");
+            Console.WriteLine($"Cередній: {query2.Average():F2}");
+        }
+
+        private void ShowRandomSale()
+        {
+            // Задача: вибрати випадковий продаж, вивести повну інформацію: назва товару, кількість-ціна-вартість, Ім'я співробітника та його фірму
+            Sale sale = context.Sales.OrderBy(_ => Guid.NewGuid()).First();
+            Product product = context.Products.Find(sale.ProductId)!;
+            Employee employee = context.Employees.Find(sale.EmployeeId)!;
+
+            Console.WriteLine($"Товар: {product.Name}");
+            Console.WriteLine($"{product.Price} -- {sale.Quantity} -- {product.Price * sale.Quantity}");
+            Console.WriteLine($"Продавець: {employee.Name}");
+            Console.WriteLine($"Фірма: {context.Firms.Find(employee.FirmId)!.Name}");
+            Console.WriteLine("--------------------------");
+            // Попередній спосіб вирішує задачу за 4 запити до контексту (БД)
+            // Зменшити кількість запитів можна через поєднання таблиць
+            var query = context.Sales
+            .OrderBy(_ => Guid.NewGuid())
+            .Join(
+                context.Products,
+                s => s.ProductId,
+                p => p.Id,
+                (Sale, Product) => new { Sale, Product }
+            )
+            .Join(
+                context.Employees,
+                r => r.Sale.EmployeeId,
+                e => e.Id,
+                (r, Employee) => new { r.Sale, r.Product, Employee }
+            )
+            .Join(
+                context.Firms,
+                r => r.Employee.FirmId,
+                f => f.Id,
+                (r, Firm) => new { r.Sale, r.Product, r.Employee, Firm }
+            );
+
+            var str = query
+                .Select(r => $"{r.Product.Name} ({r.Product.Price} -- {r.Sale.Quantity} -- {r.Product.Price * r.Sale.Quantity}), {r.Employee.Name}, {r.Firm.Name}")
+                .First();
+
+            Console.WriteLine(str);
+
+        }
+
+        private void GenerateSales()
+        {
+            // Задача: додати до БД 10000 випадкових продажів:
+            // товар - випадковий з БД
+            // продавець - випадковий
+            // момент - випадковий, у робочий час у довільний день від 01.01.2025 до поточної дати
+            // кількість - 1, якщо ціна товару більша за середню по всіх товарах, випадкова від 1 до 5 інакше
+            Console.WriteLine("Generating...");
+            var avgPrice = context.Products.Average(p => p.Price);
+            DateTime startDate = new(2025, 1, 1, 9, 0, 0);
+            int daysFromStart = (DateTime.Now - startDate).Days;
+            int wokdayInSeconds = 9 * 60 * 60;
+            for (int i = 0; i < 10000; i += 1)
+            {
+                var rndProduct = context.Products.OrderBy(_ => Guid.NewGuid()).First();
+                var rndEmployee = context.Employees.OrderBy(_ => Guid.NewGuid()).First();
+                DateTime moment = startDate
+                    .AddDays(random.Next(daysFromStart))
+                    .AddSeconds(random.Next(wokdayInSeconds));
+                int quantity = rndProduct.Price > avgPrice ? 1 : 1 + random.Next(5);
+
+                context.Sales.Add(new()
+                {
+                    Id = Guid.NewGuid(),
+                    EmployeeId = rndEmployee.Id,
+                    Quantity = quantity,
+                    ProductId = rndProduct.Id,
+                    Moment = moment,
+                });
+            }
+            // Зміни залишаються у контексті (не переносяться до БД) якщо не подавати команду збереження
+            context.SaveChanges();
+        }
+
+        public void Run1()
+        {            
             // Запити EF переслідують головну ідею - однаковий синтаксис незалежно від СУБД
             // MS SQL (T-SQL):  SELECT CURRENT_TIMESTAMP AS [дата-час]           | Неможна побудувати
             // MySQL  (P-SQL):  SELECT CURRENT_TIMESTAMP AS `дата-час`           | єдиний SQL, валідний

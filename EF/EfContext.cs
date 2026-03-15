@@ -19,9 +19,13 @@ namespace DataManagementP47.EF
 
         // DbSet - колекція для відображення таблиці
         public DbSet<Entities.Employee> Employees { get; set; }
+
         public DbSet<Entities.Firm> Firms { get; set; }
+
         public DbSet<Entities.Product> Products { get; set; }
+
         public DbSet<Entities.Sale> Sales { get; set; }
+
 
         // На етапі проєктування ми зазначаємо рядок підключення до неіснуючої БД
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
